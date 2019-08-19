@@ -6,6 +6,7 @@ require_once('inc/photo-config.inc');
 require_once('inc/locked.inc');
 require_once('inc/default-database-directory.inc');
 require_once('inc/name-mangler.inc');
+require_once('inc/photos-on-now-racing.inc');
 
 require_permission(SET_UP_PERMISSION);
 ?><!DOCTYPE html>
@@ -52,29 +53,29 @@ $use_xbs = read_raceinfo_boolean('xbs-award');
 $xbs_award = read_raceinfo('xbs-award');
 if (!$xbs_award) $xbs_award = 'Exclusively By Scout';
 $use_master_sched = read_raceinfo_boolean('use-master-sched');
-$show_racer_photos = read_raceinfo_boolean('show-racer-photos');
+
+$photos_on_now_racing = read_photos_on_now_racing();
 $show_car_photos_on_deck = read_raceinfo_boolean('show-cars-on-deck');
 $show_racer_photos_rr = read_raceinfo_boolean('show-racer-photos-rr');
 $show_car_photos_rr = read_raceinfo_boolean('show-car-photos-rr');
 $locked_settings = locked_settings();
 $name_style = read_raceinfo('name-style', FULL_NAME);
+$finish_formatting = get_finishtime_formatting_string();
 ?>
 
 <div class="block_buttons">
 <form id="settings_form">
-  <input type="hidden" name="action" value="settings.write"/>
-
   <div class="settings_group">
     <div class="settings_group_image">
       <img src="img/settings-timer.png"/>
     </div>
 
     <div class="settings_group_settings">
-    <input type="hidden" name="with-gprm-checkbox" value="yes"/>
       <p>
-        <input id="with-gprm" name="with-gprm" data-enhanced="true"
-                type="checkbox"<?php if (with_gprm()) echo ' checked="checked"';?>/>
-        <label>Using Grand Prix Race Manager (for timer control, etc.)?</label>
+        <input id="warn-no-timer" name="warn-no-timer" data-enhanced="true"
+                type="checkbox"<?php if (warn_no_timer()) echo ' checked="checked"';?>/>
+        <label title="Enable this if you plan to enter times manually or use with GPRM. It will remove the warning from the 'now racing' dashboard regarding the timer not being connected.">
+               Warn when timer not connected</label>
       </p>
       <p>
         <input id="n-lanes" name="n-lanes" type="number" min="0" max="20"
@@ -91,9 +92,20 @@ Lanes available for scheduling:</p>
 </span>
 </p>
       <p>
-        <input id="track-length" name="track-length" type="number" data-enhanced="true"
+        <input id="track-length" name="track-length" type="number" min="0" max="999"
+               data-enhanced="true"
                value="<?php echo read_raceinfo('track-length', 40); ?>"/>
         <label for="track-length">Track length (in feet)</label>
+      </p>
+      <p>Displayed time precision:
+        <input type="radio" name="finish-formatting" value="%5.3f" id="finish-formatting-3"
+          data-role="none"<?php
+        echo $finish_formatting == "%5.3f" ? ' checked="checked"' : '';
+        ?>/><label for="finish-formatting-3" data-enhanced="true">4 digits (0.001)</label>&nbsp;
+        <input type="radio" name="finish-formatting" value="%6.4f" id="finish-formatting-4"
+          data-role="none"<?php
+        echo $finish_formatting == "%6.4f" ? ' checked="checked"' : '';
+        ?>/><label for="finish-formatting-4">5 digits (0.0001)</label>
       </p>
     </div>
   </div>
@@ -113,7 +125,6 @@ Lanes available for scheduling:</p>
         <label for="group-label">Group Label</label>
       </p>
       <p>
-        <input type="hidden" name="do-use-subgroups-checkbox" value="yes"/>
         <input id="use-subgroups" name="do-use-subgroups" data-enhanced="true" type="checkbox"<?php
             if ($use_subgroups) echo ' checked="checked"';?>/>
         <label>Use subgroups?</label>
@@ -145,20 +156,22 @@ Lanes available for scheduling:</p>
       <p>
         <input id="n-pack" name="n-pack-trophies" type="number" min="0" max="20" data-enhanced="true"
                value="<?php echo read_raceinfo('n-pack-trophies', 3); ?>"/>
-        <label for="n-pack">Number of speed trophies at the <?php echo supergroup_label_lc(); ?> level</label>
+        <label for="n-pack">Number of speed trophies at the
+               <span class="supergroup-label"><?php echo supergroup_label_lc(); ?></span> level</label>
       </p>
       <p>
         <input id="n-den" name="n-den-trophies" type="number" min="0" max="20" data-enhanced="true"
                value="<?php echo read_raceinfo('n-den-trophies', 3); ?>"/>
-        <label for="n-den">Number of speed trophies per <?php echo group_label_lc(); ?></label>
+        <label for="n-den">Number of speed trophies per
+               <span class="group-label"><?php echo group_label_lc(); ?></span></label>
       </p>
       <p>
         <input id="n-rank" name="n-rank-trophies" type="number" min="0" max="20" data-enhanced="true"
                value="<?php echo read_raceinfo('n-rank-trophies', 0); ?>"/>
-        <label for="n-pack">Number of speed trophies per <?php echo subgroup_label_lc(); ?></label>
+        <label for="n-pack">Number of speed trophies per
+               <span class="subgroup-label"><?php echo subgroup_label_lc(); ?></span></label>
       </p>
       <p>
-        <input type="hidden" name="use-xbs-checkbox" value="yes"/>
         <input id="use-xbs" name="use-xbs" data-enhanced="true"
                 type="checkbox"<?php if ($use_xbs) echo ' checked="checked"';?>/>
         <label>Offer "Exclusively By Scout" award?</label>
@@ -198,29 +211,33 @@ function photo_settings($category, $photo_dir_id, $photo_dir_value, $photo_size_
     </div>
 
     <div class="settings_group_settings">
-      <p>
-        <input type="hidden" name="show-racer-photos-checkbox" value="yes"/>
-        <input id="show-racer-photos" name="show-racer-photos" data-enhanced="true"
-               type="checkbox"<?php if ($show_racer_photos) echo ' checked="checked"';?>/>
-        <label>Show racer photos on main racing board</label>
+      <p><b>Now Racing</b> display:<br/>&nbsp;&nbsp;
+        <input type="radio" name="photos-on-now-racing" value="0"
+                    id="now-racing-photos-0" data-role="none"<?php
+        echo $photos_on_now_racing ? '' : ' checked="checked"';
+        ?>/><label for="now-racing-photos-0" data-enhanced="true">No photos</label>&nbsp;
+        <input type="radio" name="photos-on-now-racing" value="head"
+                    id="now-racing-photos-head" data-role="none"<?php
+        echo $photos_on_now_racing == "head" ? ' checked="checked"' : '';
+        ?>/><label for="now-racing-photos-head" data-enhanced="true">Racer photos</label>&nbsp;
+        <input type="radio" name="photos-on-now-racing" value="car"
+                    id="now-racing-photos-car" data-role="none"<?php
+        echo $photos_on_now_racing == "car" ? ' checked="checked"' : '';
+        ?>/><label for="now-racing-photos-car" data-enhanced="true">Car photos</label>
       </p>
-      <p>
-        <input type="hidden" name="show-car-photos-on-deck-checkbox" value="yes"/>
+      <p><b>On Deck</b> display:<br/>&nbsp;&nbsp;
         <input id="show-car-photos-on-deck" name="show-car-photos-on-deck" data-enhanced="true"
                type="checkbox"<?php if ($show_car_photos_on_deck) echo ' checked="checked"';?>/>
-        <label>Show car photos in on-deck display</label>
+        <label>Car photos</label>
       </p>
-      <p>
-        <input type="hidden" name="show-racer-photos-rr-checkbox" value="yes"/>
+      <p><b>Racer Results</b> display:<br/>&nbsp;&nbsp;
         <input id="show-racer-photos-rr" name="show-racer-photos-rr" data-enhanced="true"
                type="checkbox"<?php if ($show_racer_photos_rr) echo ' checked="checked"';?>/>
-        <label>Show racer photos in racer-results display</label>
-      </p>
-      <p>
-        <input type="hidden" name="show-car-photos-rr-checkbox" value="yes"/>
+        <label>Racer photos</label>&nbsp;
+
         <input id="show-car-photos-rr" name="show-car-photos-rr" data-enhanced="true"
                type="checkbox"<?php if ($show_car_photos_rr) echo ' checked="checked"';?>/>
-        <label>Show car photos in racer-results display</label>
+        <label>Car photos</label>
       </p>
 
       <?php photo_settings('racer', 'photo-dir', photo_directory(), 'photo'); ?>
@@ -234,27 +251,30 @@ function photo_settings($category, $photo_dir_id, $photo_dir_value, $photo_size_
     </div>
     <div class="settings_group_settings">
       <p>
-        <input type="hidden" name="drop-slowest-checkbox" value="yes"/>
-        <input id="drop-slowest" name="drop-slowest" data-enhanced="true" type="checkbox"<?php 
+        <input id="drop-slowest" name="drop-slowest" data-enhanced="true" type="checkbox"<?php
             if (read_raceinfo_boolean('drop-slowest')) echo ' checked="checked"';?>/>
         <label>Drop each racer's slowest heat?</label>
       </p>
       <p>
-        <input type="hidden" name="use-master-sched-checkbox" value="yes"/>
         <input id="use-master-sched" name="use-master-sched" data-enhanced="true" type="checkbox"<?php
             if ($use_master_sched) echo ' checked="checked"';?>/>
         <label>Interleave heats from different <?php echo group_label_lc(); ?>s</label>
       </p>
       <p>
-        <input type="hidden" name="use-points-checkbox" value="yes"/>
-        <input id="use-points" name="use-points" data-enhanced="true" type="checkbox"<?php 
+        <input id="use-points" name="use-points" data-enhanced="true" type="checkbox"<?php
             if (read_raceinfo_boolean('use-points')) echo ' checked="checked"';?>/>
         <label>Race by points (place) instead of by times?</label>
       </p>
+      <p>
+        <input type="hidden" name="max-runs-per-car" id="max-runs-per-car"
+               value="<?php echo read_raceinfo("max-runs-per-car", 0); ?>"/>
+        <input type="checkbox" id="max-runs" data-enhanced="true"<?php
+          if (read_raceinfo("max-runs-per-car", 0) != 0) echo ' checked="checked"'; ?>
+          onchange="on_max_runs_change();"/>
+        <label>Abbreviated single-run-per-car schedule?</label>
+      </p>
     </div>
   </div>
-
-  <input data-enhanced="true" type="submit"/>
 </form>
 </div>
 

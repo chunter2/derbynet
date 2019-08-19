@@ -11,34 +11,90 @@
 # announce() is a scripting hook to provide feedback to the user in response to
 # various events encountered.  Takes one argument, the "event" name.
 #
-# Local installations should override by providing an alternate definition in
+# Local installations may embellish the default behavior by providing alternate
+# definitions of either pre_announce_hook or post_announce_hook in
 # /etc/derbynet.conf or similar:
 #
 #    #! /bin/sh
-#    unset announce
-#    announce() { ... }
+#    unset pre_announce_hook
+#    pre_announce_hook() { ... }
 #
+#
+pre_announce_hook() {
+    :
+}
+post_announce_hook() {
+    :
+}
+
 announce() {
     echo Announce: $1
+    pre_announce_hook $1
+    test -x /usr/bin/mpg123 && PLAYER=/usr/bin/mpg123
+    test -x /usr/bin/omxplayer && PLAYER=/usr/bin/omxplayer
     case $1 in
-        initializing) ;;
-        terminating) ;;
-        idle) ;;
-        barcode-read) ;;
-        sending) ;;
-        login-ok) ;;
-        no-scanner) ;;
-        no-camera) ;;
-        capture-ok) ;;
-        checkin-failed) ;;
-        success) ;;
-        upload-ok-but-checkin-failed) ;;
-        upload-failed) ;;
-        speed-good) ;;
-        speed-fair) ;;
-        speed-poor) ;;
-        unrecognized-barcode) ;;
+        initializing)
+            test -x /usr/bin/flite && flite -t "Initializing"
+            ;;
+        no-network)
+            test -x /usr/bin/flite && flite -t "No network connection"
+            ;;
+        terminating)
+            ;;
+        idle)
+            ;;
+        barcode-read)
+            # Intentional phonetic spelling for "read":
+            test -x /usr/bin/flite && flite -t "Bar code red"
+            ;;
+        sending)
+            test -x /usr/bin/flite && flite -t "sending data" &
+            ;;
+        login-ok)
+            test -x /usr/bin/flite && flite -t "Logged in okay"
+            ;;
+        no-scanner)
+            test -x /usr/bin/flite && flite -t "No bar code scanner found"
+            ;;
+        no-camera)
+            test -x /usr/bin/flite && flite -t "No camera found"
+            ;;
+        checkin-failed)
+            test -x /usr/bin/flite && flite -t "Check-in failed"
+            ;;
+        capture-ok)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/magic-wand.mp3
+            test -x /usr/bin/flite && flite -t "Photo captured okay"
+            ;;
+        capture-failed)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/dundundunnn.mp3
+            test -x /usr/bin/flite && flite -t "Photo capture failed"
+            ;;
+        success)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/tada-fanfare-f.mp3
+            test -x /usr/bin/flite && flite -t "Upload complete."
+            ;;
+        upload-ok-but-checkin-failed)
+            test -x /usr/bin/flite && flite -t "Upload okay but check-in failed"
+            ;;
+        upload-failed)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/dundundunnn.mp3
+            test -x /usr/bin/flite && flite -t "Upload failed"
+            ;;
+        speed-good)
+            # [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/tada-fanfare-f.mp3
+            ;;
+        speed-fair)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/saddertrombones.mp3
+            ;;
+        speed-poor)
+            [ -n "$PLAYER" ] && $PLAYER /usr/share/derbynet/sounds/dundundunnn.mp3
+            ;;
+        unrecognized-barcode)
+            test -x /usr/bin/flite && flite -t "Unrecognized bar code" &
+            ;;
     esac
+    post_announce_hook $1
 }
 
 # The PHOTO_REPO variable must be one of these two keywords:
@@ -61,6 +117,13 @@ PHOTO_PASSWORD=flashbulb
 # If set to 1, the barcode scan will also check-in the racer
 PHOTO_CHECKIN=0
 
+# Raspberry Pi and similar devices don't keep time while they're unplugged.  For
+# these cases, the derbynet server reports the current time in a login response.
+# If this variable is set, the do_login function will attempt to adjust the
+# system clock to match the server-reported time.
+ADJUST_CLOCK=0
+# ADJUST_CLOCK=1
+
 # Command invoked just before running chdkptp to capture a photo.
 # Override to adjust zoom, etc., if desired
 # E.g. chdkptp -c -e"rec" -e"luar set_zoom(50)"
@@ -69,6 +132,11 @@ prepare_camera_before_shot() {
 }
 
 test -f /etc/derbynet.conf  && . /etc/derbynet.conf
+if [ -d /etc/derbynet.d ] ; then
+    for CONF in `find /etc/derbynet.d -name \*.conf` ; do
+        . $CONF
+    done
+fi
 test -f /boot/derbynet.conf && . /boot/derbynet.conf
 
 announce initializing
@@ -77,10 +145,6 @@ announce initializing
 test -n "$1" && DERBYNET_SERVER="$1"
 
 test -z "$DERBYNET_SERVER" && echo "No server specified" && exit 1
-
-CUR_DIR="`pwd`"
-test -z "$PHOTO_DIR" && PHOTO_DIR="$CUR_DIR/photos-`date '+%Y-%m-%d'`"
-test ! -d "$PHOTO_DIR" && mkdir "$PHOTO_DIR"
 
 COOKIES=`mktemp`
 

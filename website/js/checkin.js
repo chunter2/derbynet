@@ -31,7 +31,7 @@ function preserve_autocrop_state() {
 
 // This executes when a checkbox for "Passed" is clicked.
 function handlechange_passed(cb, racer) {
-    // cb is the checkbox element, with name "pased-" plus the racer id, e.g., passed-1234
+    // cb is the checkbox element, with name "passed-" plus the racer id, e.g., passed-1234
     if (!cb.checked && !confirm("Are you sure you want to unregister " + racer + "?")) {
 	    cb.checked = true;
 	    return;
@@ -89,6 +89,8 @@ function show_edit_racer_form(racerid) {
   $("#eligible").prop("checked", $('#lastname-' + racerid).attr("data-exclude") == 0);
   $("#eligible").trigger("change", true);
 
+  $("#delete_racer_extension").removeClass('hidden');
+
   show_modal("#edit_racer_modal", function(event) {
       handle_edit_racer();
       return false;
@@ -111,6 +113,8 @@ function show_new_racer_form() {
   $("#eligible").prop("checked", true);
   $("#eligible").trigger("change", true);
 
+  $("#delete_racer_extension").addClass('hidden');
+  
   show_modal("#edit_racer_modal", function(event) {
       handle_edit_racer();
       return false;
@@ -147,6 +151,10 @@ function handle_edit_racer() {
                  rankid: new_rankid,
                  exclude: exclude},
             success: function(data) {
+                var warnings = data.getElementsByTagName('warning');
+                if (warnings && warnings.length > 0) {
+                  window.alert("WARNING: " + warnings[0].childNodes[0].nodeValue);
+                }
                 var new_row_elements = data.getElementsByTagName('new-row');
                 if (new_row_elements.length > 0) {
 	                tb = $(".main_table tbody");
@@ -176,6 +184,95 @@ function handle_edit_racer() {
                 sort_checkin_table();
             },
            });
+}
+
+function handle_delete_racer() {
+  close_modal("#edit_racer_modal");
+
+  var racerid = $("#edit_racer").val();
+
+  var first_name = $('#firstname-' + racerid).text();
+  var last_name = $('#lastname-' + racerid).text();
+  var car_no = $('#car-number-' + racerid).text();
+
+  if (confirm("Really delete car #" + car_no + ": " + first_name + " " + last_name + "?")) {
+    $.ajax(g_action_url,
+           {type: 'POST',
+            data: {action: 'racer.delete',
+                   racer: racerid}
+           });
+  }
+
+  return false;
+}
+
+
+function show_bulk_form() {
+  show_modal("#bulk_modal", function(event) {
+      return false;
+  });
+}
+
+function bulk_check_in(value) {
+  close_modal("#bulk_modal");
+  $("#bulk_details_title").text(value ? "Bulk Check-In" : "Bulk Check-In Undo");
+  $("#who_label").text(value ? "Check in racers in" : "Undo check-in of racers in");
+  $("#bulk_details div.hidable").addClass("hidden");
+
+  show_secondary_modal("#bulk_details_modal", function(event) {
+    close_secondary_modal("#bulk_details_modal");
+    $.ajax(g_action_url,
+           {type: 'POST',
+            data: {action: 'racer.bulk',
+                   what: 'checkin',
+                   who: $("#bulk_who").val(),
+                   value: value ? 1 : 0},
+           });
+    return false;
+  });
+}
+
+function bulk_numbering() {
+  close_modal("#bulk_modal");
+  $("#bulk_details_title").text("Bulk Numbering");
+  $("#who_label").text("Assign car numbers to");
+  $("#bulk_details div.hidable").addClass("hidden");
+  $("#numbering_controls").removeClass("hidden");
+
+  show_secondary_modal("#bulk_details_modal", function(event) {
+    close_secondary_modal("#bulk_details_modal");
+    $.ajax(g_action_url,
+           {type: 'POST',
+            data: {action: 'racer.bulk',
+                   what: 'number',
+                   who: $("#bulk_who").val(),
+                   start: $("#bulk_numbering_start").val(),
+                   renumber: $("#renumber").is(':checked') ? 1 : 0},
+           });
+                  
+    return false;
+  });
+}
+  
+function bulk_eligibility() {
+  close_modal("#bulk_modal");
+  $("#bulk_details_title").text("Bulk Eligibility");
+  $("#who_label").text("Change eligibility for");
+  $("#bulk_details div.hidable").addClass("hidden");
+  $("#elibility_controls").removeClass("hidden");
+
+  show_secondary_modal("#bulk_details_modal", function(event) {
+    close_secondary_modal("#bulk_details_modal");
+    $.ajax(g_action_url,
+           {type: 'POST',
+            data: {action: 'racer.bulk',
+                   what: 'eligibility',
+                   who: $("#bulk_who").val(),
+                   value: $("#bulk_eligible").is(':checked') ? 1 : 0},
+           });
+                  
+    return false;
+  });
 }
 
 function disable_preview(msg) {
@@ -403,13 +500,12 @@ function close_photo_modal() {
 }
 
 function compare_first(a, b) {
-  if (a[0] == b[0])
-      return 0;
-  if (a[0] < b[0])
-      return -1;
-   return 1;
+  for (var i = 0; i < a[0].length; ++i) {
+    if (a[0][i] < b[0][i]) return -1;
+    if (a[0][i] > b[0][i]) return 1;
+  }
+  return 0;
 }
-
 
 function sorting_key(row) {
   if (g_order == 'class') {

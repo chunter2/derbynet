@@ -1,7 +1,6 @@
 package org.jeffpiazza.derby;
 
 import java.io.ByteArrayInputStream;
-import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -14,25 +13,48 @@ import java.net.*;
 public class ClientSession {
   private CookieManager manager;
   private String base_url;
+  private String original_base_url;
 
   public ClientSession(String base_url) {
     String lowercase_url = base_url.toLowerCase();
-    if (!lowercase_url.startsWith("http://") &&
-        !lowercase_url.startsWith("https://")) {
+    if (!lowercase_url.startsWith("http://")
+        && !lowercase_url.startsWith("https://")) {
       base_url = "http://" + base_url;
     }
     if (!base_url.endsWith("/")) {
       base_url += "/";
     }
+    original_base_url = base_url;
     manager = new CookieManager();
     manager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
     CookieHandler.setDefault(manager);
     this.base_url = base_url;
   }
 
+  public String getBaseUrl() {
+    return base_url;
+  }
+
+  // Repeated calls to makeUrlVariation should rewrite base_url to different
+  // variations of the original URL, or return false if there are no more.
+  // This implementation considers only one variation.
+  private boolean makeUrlVariation() {
+    if (base_url == original_base_url) {  // ptr equality OK for this
+      if (base_url.endsWith("/derbynet/")) {
+        base_url = base_url.substring(0, base_url.lastIndexOf("derbynet/"));
+      } else {
+        base_url = base_url + "derbynet/";
+      }
+      System.err.println();
+      System.err.println("Trying URL variation " + base_url);
+      return true;
+    }
+    return false;
+  }
+
   public Element login(String username, String password) throws IOException {
-    return doPost("action.php",
-                  "action=login&name=" + username + "&password=" + password);
+    return doPostWithVariations("action.php",
+                                "action=login&name=" + username + "&password=" + password);
   }
 
   public Element sendTimerMessage(String messageAndParams) throws IOException {
@@ -43,23 +65,46 @@ public class ClientSession {
     return doPost("action.php", params);
   }
 
-  public Element doPost(String url_path, String params) throws IOException {
+  private Element doPostWithVariations(String url_path, String params)
+      throws IOException {
+    Element result;
+
+    do {
+      result = doPost(url_path, params);
+    } while (result == null && makeUrlVariation());
+
+    return result;
+  }
+
+  private Element doPost(String url_path, String params) throws IOException {
     return doPost(new URL(base_url + url_path), params);
   }
 
-  public Element doPost(URL url, String params) throws IOException {
+  private Element doPost(URL url, String params) throws IOException {
     // TODO Sun Security Validator failed
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
     connection.setRequestMethod("POST");
+    connection.addRequestProperty("User-Agent",
+                                  "derby-timer.jar/" + Version.get());
 
     connection.setDoOutput(true);
-    OutputStreamWriter writer = new OutputStreamWriter(connection.
-        getOutputStream());
+    OutputStreamWriter writer =
+        new OutputStreamWriter(connection.getOutputStream());
     writer.write(params);
     writer.flush();
     writer.close(); // writer.close() may block.
 
     return getResponse(connection);
+  }
+
+  public Element doQueryWithVariations(String q) throws IOException {
+    Element result;
+
+    do {
+      result = doQuery(q);
+    } while (result == null && makeUrlVariation());
+
+    return result;
   }
 
   public Element doQuery(String q) throws IOException {
@@ -70,9 +115,12 @@ public class ClientSession {
     return doQuery(new URL(base_url + "action.php?query=" + q + "&" + params));
   }
 
-  public Element doQuery(URL url) throws IOException {
+  // Overridden by SimulatedClientSession
+  protected Element doQuery(URL url) throws IOException {
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
     connection.setRequestMethod("GET");
+    connection.addRequestProperty("User-Agent",
+                                  "derby-timer.jar/" + Version.get());
     return getResponse(connection);
   }
 

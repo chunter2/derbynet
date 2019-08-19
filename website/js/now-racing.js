@@ -103,6 +103,7 @@ var Lineup = {
       }
 
       var racers = now_racing.getElementsByTagName("racer");
+      var zero = now_racing.getElementsByTagName('zero')[0].getAttribute('zero');
       if (is_new_heat && racers.length > 0) {
         FlyerAnimation.enable_flyers();
         FlyerAnimation.set_number_of_racers(racers.length);
@@ -112,7 +113,7 @@ var Lineup = {
         $('[data-lane] .carnumber').text('');
         $('[data-lane] .photo').empty();
         $('[data-lane] .name').text('');
-        $('[data-lane] .time').css({opacity: 0}).text('0.000');
+        $('[data-lane] .time').css({opacity: 0}).text(zero);
         $('[data-lane] .speed').css({opacity: 0}).text('200.0');
         $('[data-lane] .place span').text('');
         $('[data-lane] img').remove();
@@ -152,6 +153,8 @@ var Lineup = {
             if (r.getAttribute('photo') != $('[data-lane="' + lane + '"] .photo img').attr('src')) {
               $('[data-lane="' + lane + '"] .photo img').attr('src', r.getAttribute('photo'));
             }
+          } else {
+            $('[data-lane="' + lane + '"] .photo').empty();
           }
         }
       }
@@ -339,7 +342,7 @@ function process_polling_result(now_racing) {
 
       $('[data-lane="' + lane + '"] .time')
         .css({opacity: 100})
-        .text(hr.getAttribute('time').substring(0,5));
+        .text(hr.getAttribute('time'));
       if (FlyerAnimation.ok_to_animate) {
         $('[data-lane="' + lane + '"] .place').css({opacity: 0});
       }

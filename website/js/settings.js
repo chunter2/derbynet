@@ -1,3 +1,4 @@
+'use strict';
 
 function on_lane_count_change() {
   $("#lanes-in-use").empty();
@@ -33,30 +34,13 @@ function on_lane_click(event) {
   }
 
   $("#unused-lane-mask").val(mask);
-  g_form_modified = 1;
-  target.closest(".settings_group").addClass("modified");
+  PostSettingChange($("#unused-lane-mask"));
 }
 
-function on_form_submission() {
-    $.ajax('action.php',
-           {type: 'POST',
-            data: $("#settings_form").serialize(),
-            success: function(data) {
-               var fail = data.documentElement.getElementsByTagName("failure");
-               if (fail && fail.length > 0) {
-                 console.log(data);
-                 alert("Action failed: " + fail[0].textContent);
-               } else {
-                 g_form_modified = 0;
-                 window.location.href = "setup.php";
-               }
-             },
-             error: function(jqXHR, ajaxSettings, thrownError) {
-               alert('Ajax error: ' + thrownError);
-             }
-           });
-  return false;
-};
+function on_max_runs_change() {
+  $("#max-runs-per-car").val(document.getElementById('max-runs').checked ? 1 : 0);
+  PostSettingChange($("#max-runs-per-car"));
+}
 
 function render_directory_status_icon(photo_dir_selector) {
     $.ajax('action.php',
@@ -100,29 +84,94 @@ function browse_for_photo_directory(photo_dir_selector) {
   });
 }
 
+// Respond to changes in group, supergroup, or subgroup label
+function on_label_change() {
+  $("span.supergroup-label").text($("#supergroup-label").val().toLowerCase());
+  $("span.group-label").text($("#group-label").val().toLowerCase());
+  $("span.subgroup-label").text($("#subgroup-label").val().toLowerCase());
+}
+
+// PostSettingChange(input) responds to a change in an <input> element by
+// sending an ajax POST request with the input element's current value.  Handles
+// checkboxes, too.
+
+var PostSettingChange;
+
+(function() {
+  let next_train = 0;
+  let values = {action: 'settings.write'};
+
+  function maybe_post() {
+    if (next_train == 0) {
+      next_train = setTimeout(function() {
+        next_train = 0;
+        let d = values;
+        values = {action: 'settings.write'};
+
+        console.log('POSTing ' + JSON.stringify(d));
+
+        $.ajax('action.php',
+               {type: 'POST',
+                data: d,
+                success: function(data) {
+                  var fail = data.documentElement.getElementsByTagName("failure");
+                  if (fail && fail.length > 0) {
+                    console.log(data);
+                    alert("Action failed: " + fail[0].textContent);
+                  }
+                },
+                error: function(jqXHR, ajaxSettings, thrownError) {
+                  alert('Ajax error: ' + thrownError);
+                }
+               });
+      }, 200);
+    }
+  }
+
+  PostSettingChange = function(input) {
+    let name = input.attr('name');
+    if (typeof name == 'undefined' || name === false) {
+      return;
+    }
+
+    if (input.attr('type') == 'checkbox') {
+      values[name + '-checkbox'] = 'yes';
+      if (input.is(':checked')) {
+        values[name] = 1;
+      } else {
+        delete values[name];
+      }
+    } else {
+      values[name] = input.val();
+    }
+
+    maybe_post();
+  };
+
+})();
+
 var g_form_modified = 0;
 
 $(function() {
 
-$("#n-lanes").on("keyup mouseup", on_lane_count_change);
-on_lane_count_change();  
-$("#settings_form").on("submit", on_form_submission);
+  $("#n-lanes").on("keyup mouseup", on_lane_count_change);
+  on_lane_count_change();
 
-$('#settings_form *').on("change", function() {
-    g_form_modified = 1;
-    $(this).closest(".settings_group").addClass("modified");
-});
+  $("#supergroup-label").on("keyup mouseup", on_label_change);
+  $("#group-label").on("keyup mouseup", on_label_change);
+  $("#subgroup-label").on("keyup mouseup", on_label_change);
 
-window.onbeforeunload = function() {
-    if (g_form_modified == 1) {
-        return "You have unsaved changes.";
-    }
-}
+  $('#settings_form input').on('change', function(e) {
+    PostSettingChange($(this));
+  });
+  $('#settings_form input[type!="checkbox"]').on('input', function(e) {
+    PostSettingChange($(this));
+  });
 
-render_directory_status_icon("#photo-dir");
-render_directory_status_icon("#car-photo-dir");
+  render_directory_status_icon("#photo-dir");
+  render_directory_status_icon("#car-photo-dir");
 
-$("#photo-dir").on("change", function() { render_directory_status_icon("#photo-dir"); });
-$("#car-photo-dir").on("change", function() { render_directory_status_icon("#car-photo-dir"); });
+  $("#photo-dir").on("change", function() { render_directory_status_icon("#photo-dir"); });
+  $("#car-photo-dir").on("change", function() { render_directory_status_icon("#car-photo-dir"); });
 
 });

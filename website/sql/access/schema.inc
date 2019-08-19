@@ -4,6 +4,18 @@ require_once('inc/schema_version.inc');
 
 return array_merge(
   array(
+
+    // Table constraints prevent deletions from working in alphabetical order.
+    'DROP TABLE Awards',
+    'DROP TABLE AwardTypes',
+    'DROP TABLE RaceInfo',
+    'DROP TABLE RaceChart',
+    'DROP TABLE Roster',
+    'DROP TABLE Rounds',
+    'DROP TABLE RegistrationInfo',
+    'DROP TABLE Classes',
+    'DROP TABLE Ranks',
+
 'DROP TABLE Awards',
 
 'CREATE TABLE Awards'
@@ -297,6 +309,8 @@ array(
 
 @include_once(sql_file_path('events-table')),
 
+@include_once(sql_file_path('message-queue-table')),
+
 @include_once(sql_file_path('award-type-values')),
 
 array(
@@ -320,7 +334,7 @@ array(
 "INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (21, 'StepOrgSetup', 'Complete')",
 
 "INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (10, 'schema', ".expected_schema_version().")",
-"INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (11, 'show-racer-photos', '1')",
+"INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (11, 'photos-on-now-racing', 'head')",
 "INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (12, 'show-cars-on-deck', '1')",
 "INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (13, 'show-racer-photos-rr', '1')",
 "INSERT INTO RaceInfo (RaceInfoID, ItemKey, ItemValue) VALUES (14, 'show-car-photos-rr', '1')",

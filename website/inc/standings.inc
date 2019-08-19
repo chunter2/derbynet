@@ -162,10 +162,16 @@ function final_standings($completed_only = false) {
 
   $scoring_expr = sql_scoring_expression('finishtime', 'finishplace');
   $raw_expr = read_raceinfo_boolean('use-points') ? 'finishplace' : 'finishtime';
-  // TODO Drop slowest for points racing?  This expression doesn't account for that, if it's meaningful.
-  $avg_expr = read_raceinfo_boolean('use-points')
-          ? (1 + get_lane_count()).' * COUNT(*) - SUM(finishplace)'
-          : $scoring_expr;
+  if (read_raceinfo_boolean('use-points')) {
+    if (read_raceinfo_boolean('drop-slowest')) {
+      $avg_expr = (1 + get_lane_count()).' * (COUNT(*) - 1) - (SUM(finishplace) - MAX(finishplace))';
+    } else {
+      $avg_expr = (1 + get_lane_count()).' * COUNT(*) - SUM(finishplace)';
+    }
+  } else {
+    $avg_expr = $scoring_expr;
+  }
+
   $stmt = $db->query('SELECT Rounds.roundid, Rounds.classid as round_classid, '
                      .' RegistrationInfo.racerid, firstname, lastname, carnumber, carname,'
                      // classid is the racer's 'native' class, not the round's class (e.g. Grand Finals)
@@ -191,7 +197,6 @@ function final_standings($completed_only = false) {
                      .' GROUP BY Rounds.roundid, RegistrationInfo.racerid, RegistrationInfo.classid, '
                      .'  Rounds.classid, class, RegistrationInfo.rankid, rank, firstname, lastname, carnumber'
                      //.' HAVING COUNT(*) = '.$nlanes -- racers who finished all their heats
-                     .' HAVING COUNT(*) > 1'
                      // lastname, firstname for reproducible ordering in the event of a tie
                      .' ORDER BY '.$scoring_expr.', lastname, firstname');
   $result = array();
@@ -325,7 +330,7 @@ function write_standings_table_headers() {
   echo "<th>Heats</th>";
 
   if (read_raceinfo_boolean('use-points')) {
-    echo "<th>Total Points (1st = ".get_lane_count().")</th>";
+    echo "<th>Points (1st = ".get_lane_count().")</th>";
   } else {
     echo "<th>Average</th>";
   }
@@ -340,6 +345,7 @@ function write_standings_table_rows(&$standings) {
   $use_groups = show_group_standings();
   $use_subgroups = read_raceinfo_boolean('use-subgroups');
   $show_car_name = show_car_name_in_standings();
+  $time_format = get_finishtime_formatting_string();
   $first = true;
   foreach ($standings as &$row) {
     $racerid = $row['racerid'];
@@ -411,9 +417,9 @@ function write_standings_table_rows(&$standings) {
       echo "<td>".ordinal($row['best'])."</td>";
       echo "<td>".ordinal($row['worst'])."</td>";
     } else {
-      echo "<td>".sprintf('%5.3f', $row['avg'])."</td>";
-      echo "<td>".sprintf('%5.3f', $row['best'])."</td>";
-      echo "<td>".sprintf('%5.3f', $row['worst'])."</td>";
+      echo "<td>".sprintf($time_format, $row['avg'])."</td>";
+      echo "<td>".sprintf($time_format, $row['best'])."</td>";
+      echo "<td>".sprintf($time_format, $row['worst'])."</td>";
     }
     echo "</tr>\n";
   }

@@ -78,13 +78,16 @@ public class MiscJunkDevice extends TimerDeviceCommon {
                                    /* dtr */ false)) {
       return false;
     }
-
+    // We just reset the timer, give it 2s to startup
+    try {
+       Thread.sleep(2000); // ms.
+    } catch (Exception exc) { }
     portWrapper.write(READ_VERSION);
     long deadline = System.currentTimeMillis() + 500;
     String s;
     while ((s = portWrapper.next(deadline)) != null) {
       if (s.indexOf("vert=") >= 0) {
-
+        timerIdentifier = s;
         // Responds either "P" or "O"
         portWrapper.writeAndWaitForResponse(RESET, 500);
 
@@ -116,7 +119,7 @@ public class MiscJunkDevice extends TimerDeviceCommon {
           // The timer announces a race start with "B" and moves to RACING state.
           // In RACING state it stops responding to gate state queries.  Continuing to
           // poll will lead to perceived connection timeouts. TIMER LED=purple
-          setOkToPoll(false); 
+          setOkToPoll(false);
           onGateStateChange(false);
           return "";
         }

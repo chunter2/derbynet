@@ -66,6 +66,7 @@ if (!$hwresultid) {
 // rounds with the same round number.  We identify everything by round number in
 // that case, instead of roundid.
 $merge_rounds = @$_GET['merge_rounds'];
+$time_format = get_finishtime_formatting_string();
 
 $use_master_sched = use_master_sched();
 $now_running = get_running_round();
@@ -89,12 +90,7 @@ if ($next !== false) {
     .' ON RaceChart.roundid = Rounds.roundid'
     .' WHERE (finishtime IS NOT NULL OR finishplace IS NOT NULL)'
     .($since
-	    ? ' AND completed > '
-	      .($dbtype == 'access'
-			  ? 'CDate(:since)' 
-            : ($dbtype == 'sqlite'
-               ? 'datetime(:since)'
-               : 'TIMESTAMP(:since)'))
+	    ? ' AND completed > '.db_compare_completed(':since')
 	    : "") 
     .' ORDER BY completed, resultid, lane';
   $stmt = $db->prepare($sql);
@@ -112,8 +108,7 @@ if ($next !== false) {
     if ($use_points) {
       $val = ordinal($rs['finishplace']);
     } else {
-      // TODO: Adjustable number of decimals?
-      $val = number_format($rs['finishtime'], 3);
+      $val = sprintf($time_format, $rs['finishtime']);
     }
     echo "<update resultid='".$rs['resultid']."'"
 	  ." result='".$val."'/>\n";

@@ -16,7 +16,7 @@
 //     <repeat-animation/>
 //   </now-racing>
 
-if (!with_gprm()) {
+if (warn_no_timer()) {
   require_once('inc/timer-state.inc');
   $timer_state = new TimerState();
   if ($timer_state->troubled()) {
@@ -27,10 +27,12 @@ if (!with_gprm()) {
 require_once('inc/replay.inc');
 require_once('inc/current-racers.inc');
 require_once('inc/current-heat.inc');
+require_once('inc/photos-on-now-racing.inc');
 
 $roundid = isset($_GET['roundid']) ? $_GET['roundid'] : '0';
 $heat = isset($_GET['heat']) ? $_GET['heat'] : '1';
 $track_length = read_raceinfo('track-length', 40);  // in feet
+$time_format = get_finishtime_formatting_string();
 
 // $track_length / $finishtime gives feet per second.
 //  * 3600 gives feet per hour
@@ -51,22 +53,29 @@ foreach ($stmt as $row) {
   $finishtime = $row['finishtime'];
   $speed = $finishtime == 0 ? "--" : sprintf("%4.1f", $track_length / $finishtime * $fps_to_scale_mph);
   echo '  <heat-result lane="'.$row['lane'].'"';
-  // TODO: Controllable number of decimal places?
-  echo ' time="'.sprintf('%5.3f', $finishtime).'"';
+  echo ' time="'.sprintf($time_format, $finishtime).'"';
   echo ' place="'.$row['finishplace'].'"';
   echo ' speed="'.$speed.'"';
   echo "/>\n";
 }
 
+// This lets the js reserve room for the right number of digits
+echo "<zero zero='".sprintf($time_format, 0.0)."'/>\n";
+
 $now_running = get_running_round();
 $use_master_sched = use_master_sched();
 emit_current_heat($now_running, $use_master_sched);
 
-emit_current_racers($now_running, read_raceinfo('name-style', FULL_NAME),
-                    read_raceinfo_boolean('show-racer-photos') &&
-                        isset($_GET['row-height']) && $_GET['row-height'] > 0
-                    ? (2 * $_GET['row-height']).'x'.$_GET['row-height']
-                    : false);
+$render = false;
+if (isset($_GET['row-height']) && $_GET['row-height'] > 0) {
+  $photos = read_photos_on_now_racing();
+  if ($photos) {
+    $render_name = (2 * $_GET['row-height']).'x'.$_GET['row-height'];
+    $render = photo_repository($photos)->lookup_or_any($render_name);
+  }
+}
+
+emit_current_racers($now_running, read_raceinfo('name-style', FULL_NAME), $render);
 
 if (read_raceinfo('replay_just_finished')) {
   write_raceinfo('replay_just_finished', 0);

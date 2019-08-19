@@ -6,8 +6,8 @@ import jssc.SerialPortException;
 import org.jeffpiazza.derby.Message;
 import org.jeffpiazza.derby.serialport.SerialPortWrapper;
 
-// This device class supports older FastTrack devices that don't accept (i.e.,
-// are deaf to) commands from the host.
+// This device class supports older FastTrack devices, i.e., P-series, that
+// don't accept (i.e., are deaf to) commands from the host.
 //
 // From http://www.microwizard.com/faq.html:
 //
@@ -37,7 +37,7 @@ public class OlderFastTrackDevice extends TimerDeviceBase {
   public static final int MAX_LANES = 6;
 
   public static String toHumanString() {
-    return "Older FastTrack";
+    return "Older FastTrack (P series)";
   }
 
   @Override
@@ -109,6 +109,8 @@ public class OlderFastTrackDevice extends TimerDeviceBase {
     // FastTrack, at least older versions, doesn't report actual number of lanes.
     return 0;
   }
+
+  public String getTimerIdentifier() { return null; }
 
   public void poll() throws SerialPortException, LostConnectionException {
     String line;

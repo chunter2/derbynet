@@ -26,7 +26,6 @@ var AwardPoller = {
     if (!award_xml) {
       return false;
     }
-    console.log("Reveal = " + award_xml.getAttribute('reveal'));
     return {key: award_xml.getAttribute('key'),
             reveal: award_xml.getAttribute('reveal') == 'true',
             awardname: award_xml.getAttribute('awardname'),
@@ -42,8 +41,8 @@ var AwardPoller = {
   process_current_award: function(data) {
     var award = this.parse_award(data);
     if (!award) {
-      $("#firstname").text("--");
-      $("#lastname").text("--");
+      $("#awardname").text("Award Presentation");
+      $(".reveal").hide();
       return;
     }
 
@@ -83,21 +82,39 @@ var AwardPoller = {
 
       $("#headphoto").empty();
       $("#headphoto").css('width', $(window).width() / 2 - 10);
+      $("#headphoto").css('margin-left', 0);
+
+      $("#carphoto").empty();
+      $("#carphoto").css('width', $(window).width() / 2 - 10);
+      $("#carphoto").css('margin-right', 0);
+
       if (award.headphoto && award.headphoto.length > 0) {
         $("#headphoto").append("<img src=\"" + award.headphoto + "\"/>");
         $("#headphoto img").css('max-height', maxPhotoHeight);
+      } else {
+        // If there's no head photo, center the car photo by adjusting its margin
+        $("#carphoto").css('margin-right', $(window).width() / 4);
       }
-      $("#carphoto").empty();
-      $("#carphoto").css('width', $(window).width() / 2 - 10);
       if (award.carphoto && award.carphoto.length > 0) {
         $("#carphoto").append("<img src=\"" + award.carphoto + "\"/>");
         $("#carphoto img").css('max-height', maxPhotoHeight);
+      } else {
+        // If there's no car photo, center the head photo
+        $("#headphoto").css('margin-left', $(window).width() / 4);
       }
       this.current_award_key = award.key;
+      this.revealed = false;
     }
 
     if (!award.reveal) {
       $(".reveal").hide();
+
+      var video = $("video.confetti");
+      video.hide();
+      video.get(0).pause();
+      video.get(0).currentTime = 0;
+      video.show();
+
       if (g_count == 0) {
         console.log("Hiding!");
         console.log(award);
@@ -105,6 +122,16 @@ var AwardPoller = {
       }
     } else if (!this.revealed) {
       $(".reveal").fadeIn(1000);
+      setTimeout(function() { $("video.confetti").get(0).play(); }, 500);
+      setTimeout(function() {
+        $("video.confetti").fadeOut(
+          500, function() {
+            var video = $("video.confetti");
+            video.get(0).pause();
+            video.get(0).currentTime = 0;
+            video.show();
+          }); },
+                 20500);
     }
     this.revealed = award.reveal;
   }
